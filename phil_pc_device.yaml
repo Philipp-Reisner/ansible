@@ -199,9 +199,9 @@
         "mesa-vdpau-drivers-freeworld" not in ansible_facts.packages or
         ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') == []
 
-    - name: Install Steam from rpmfusion
+    - name: Install Steam and v4l2loopback from rpmfusion
       ansible.builtin.dnf:
-        name: steam
+        name: ["steam", "kmod-v4l2loopback", "v4l2loopback", "obs-studio-plugin-x264"]
         state: present
 
     - name: Framework Laptop specifics repo
