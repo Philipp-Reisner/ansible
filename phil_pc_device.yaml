@@ -143,6 +143,12 @@
         cmd: virsh pool-autostart default
         creates: /etc/libvirt/storage/autostart/default.xml
 
+    - name: Configure NSS to resove virtual machines
+      ansible.builtin.replace:
+        path: /etc/nsswitch.conf
+        regexp: 'mdns4_minimal \['
+        replace: 'mdns4_minimal libvirt_guest ['
+
     - name: NFS mounts for home network
       ansible.builtin.blockinfile:
         path: /etc/fstab
