@@ -1,0 +1,238 @@
+#!/usr/bin/env ansible-playbook
+#
+# dnf install ansible-core
+# ansible-playbook <<this-file>>
+#
+# This is my personal Fedora setup
+
+- hosts: localhost
+  connection: local
+  become: true
+  tasks:
+
+    - name: Gather the package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Show facts available on the system
+      ansible.builtin.debug:
+        var: ansible_facts
+
+    - name: Install dnf plugins
+      ansible.builtin.dnf:
+        name: dnf-plugins-core
+        update_cache: yes
+        state: present
+
+    - name: Enable and start ssh server
+      ansible.builtin.service:
+        name: sshd
+        state: started
+        enabled: yes
+
+    - name: Create group
+      ansible.builtin.group:
+        name: "{{ item.name }}"
+        gid: "{{ item.gid }}"
+        state: present
+      loop:
+       - { name: 'mp3', gid: 900 }
+       - { name: 'phil', gid: 1001 }
+       - { name: 'christine', gid: 1004 }
+       - { name: 'quirin', gid: 1005 }
+
+    - name: Create users
+      ansible.builtin.user:
+        name: "{{ item.user }}"
+        comment: "{{ item.comment }}"
+        uid: "{{ item.uid }}"
+        group: "{{ item.group }}"
+        groups: "{{ item.groups }}"
+        state: present
+      loop:
+        - { user: 'phil', comment: 'Philipp Reisner', uid: 1001, group: 'phil', groups: 'phil,mp3,wheel' }
+        - { user: 'christine', comment: 'Christine Berger', uid: 1004, group: 'christine', groups: 'christine,mp3,wheel' }
+        - { user: 'quirin', comment: 'Quirin Berger', uid: 1005, group: 'quirin', groups: 'quirin,mp3' }
+
+    - name: Enable Fedora Copr Ubuntu fonts
+      ansible.builtin.command:
+        cmd: dnf copr enable atim/ubuntu-fonts --assumeyes
+        creates: /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:atim:ubuntu-fonts.repo
+
+    - name: Install ubuntu font
+      ansible.builtin.dnf:
+        name: ubuntu-family-fonts
+        update_cache: yes
+        state: present
+
+    - name: Install dev tools
+      ansible.builtin.dnf:
+        name: ["emacs", "git", "git-email", "flex", "bison", "kernel-devel", "coccinelle",
+               "clang-tools-extra", "bear", "autoconf", "automake", "keyutils-libs-devel",
+               "openssl-devel-engine", "patch", "diffutils", "clitest", "asciidoctor", "po4a",
+               "libaio-devel.x86_64", "ncurses-devel", "gcc-c++", "wireshark", "tcpdump",
+               "strace", "ltrace"]
+        update_cache: yes
+        state: present
+
+    - name: Generic tools
+      ansible.builtin.dnf:
+        name: ["mc", "htop", "console-setup", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
+               "fish", "podman", "pylsp", "python3-pyOpenSSL", "pip", "virt-install", "virt-manager",
+               "lnav"]
+        update_cache: yes
+        state: present
+
+    - name: Applications
+      ansible.builtin.dnf:
+        name: ["gimp", "inkscape", "qgit", "xournal", "xournalpp",
+               "libvirt-daemon-kvm", "libreoffice-langpack-de", "libvirt-nss", "v4l-utils",
+               "waypipe", "vlc", "obs-studio", "plasma-nm-fortisslvpn", "libvirt-daemon-config-network",
+               "dejavu-fonts-all"]
+        update_cache: yes
+        state: present
+
+    - name: Install Google Chrome
+      ansible.builtin.dnf:
+        enablerepo: google-chrome
+        name: google-chrome-stable
+        state: present
+
+    - name: Install latest Zoom client if not yet installed
+      ansible.builtin.dnf:
+        name: https://zoom.us/client/latest/zoom_x86_64.rpm
+        state: present
+        disable_gpg_check: yes
+      when: "'zoom' not in ansible_facts.packages"
+
+    - name: Create a symbolic link for consolefont
+      ansible.builtin.file:
+        src: /usr/share/consolefonts/Lat15-Terminus32x16.psf.gz
+        dest: /usr/lib/kbd/consolefonts/Lat15-Terminus32x16.psf.gz
+        owner: root
+        group: root
+        state: link
+
+    - name: Set consolefont
+      ansible.builtin.replace:
+        path: /etc/vconsole.conf
+        regexp: '^FONT=.*'
+        replace: 'FONT=Lat15-Terminus32x16.psf.gz'
+      register: consolefont_update
+
+    - name: Activate consolefont
+      ansible.builtin.service:
+        name: systemd-vconsole-setup.service
+        state: restarted
+      when:
+        consolefont_update.changed
+
+    - name: Set default URI for virsh and libvirt
+      ansible.builtin.replace:
+        path: /etc/libvirt/libvirt.conf
+        regexp: '^#uri_default.*'
+        replace: 'uri_default = "qemu:///system"'
+
+    - name: Create default storage pool for virsh and libvirt
+      ansible.builtin.command:
+        cmd: virsh pool-define-as --name default --type dir --target /var/lib/libvirt/images
+        creates: /etc/libvirt/storage/default.xml
+
+    - name: Autostart default storage pool for virsh and libvirt
+      ansible.builtin.command:
+        cmd: virsh pool-autostart default
+        creates: /etc/libvirt/storage/autostart/default.xml
+
+    - name: NFS mounts for home network
+      ansible.builtin.blockinfile:
+        path: /etc/fstab
+        block: |
+          base.home:/data /data/ nfs rsize=8192,wsize=8192,timeo=14,intr,noauto,user 0 0
+          base.home:/home/christine /home/base/christine nfs rsize=8192,wsize=8192,timeo=14,intr,noauto,user 0 0
+        insertafter: EOF
+      register: fstab_touched
+
+    - name: Run systemctl daemon-reload after adding lines to /etc/fstab
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when: fstab_touched.changed
+
+    - name: Enable rpmfusion repos
+      ansible.builtin.dnf:
+        name: "{{ item }}"
+        state: present
+        disable_gpg_check: yes
+      with_items:
+        - "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm"
+        - "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm"
+
+    - name: Switch to full ffmpeg from rpmfusion
+      ansible.builtin.command:
+        cmd: dnf swap ffmpeg-free ffmpeg --allowerasing --assumeyes
+      when: "'ffmpeg' not in ansible_facts.packages"
+
+    - name: Switch to hardware codecs with AMD 1/4 from rpmfusion
+      ansible.builtin.command:
+        cmd: dnf swap mesa-va-drivers mesa-va-drivers-freeworld --assumeyes
+      when: |
+        "mesa-va-drivers-freeworld" not in ansible_facts.packages or
+        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') == []
+
+    - name: Switch to hardware codecs with AMD 2/4 from rpmfusion
+      ansible.builtin.command:
+        cmd: dnf swap mesa-vdpau-drivers mesa-vdpau-drivers-freeworld --assumeyes
+      when: |
+        "mesa-vdpau-drivers-freeworld" not in ansible_facts.packages or
+        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') == []
+
+    - name: Switch to hardware codecs with AMD 3/4 from rpmfusion
+      ansible.builtin.command:
+        cmd: dnf swap mesa-va-drivers.i686 mesa-va-drivers-freeworld.i686 --assumeyes
+      when: |
+        "mesa-va-drivers-freeworld" not in ansible_facts.packages or
+        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') == []
+
+    - name: Switch to hardware codecs with AMD 4/4 from rpmfusion
+      ansible.builtin.command:
+        cmd: dnf swap mesa-vdpau-drivers.i686 mesa-vdpau-drivers-freeworld.i686 --assumeyes
+      when: |
+        "mesa-vdpau-drivers-freeworld" not in ansible_facts.packages or
+        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') == []
+
+    - name: Install Steam from rpmfusion
+      ansible.builtin.dnf:
+        name: steam
+        state: present
+
+    - name: Framework Laptop specifics repo
+      ansible.builtin.command:
+        cmd: dnf copr enable bsvh/fw-ectool --assumeyes
+        creates: /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:bsvh:fw-ectool.repo
+      when: "ansible_facts.board_vendor == 'Framework'"
+
+    - name: Framework Laptop firmware tool, and fingerprint reader support
+      ansible.builtin.dnf:
+        name: ["fw-ectool", "fprintd-pam", "fprintd"]
+        update_cache: yes
+        state: present
+      when: "ansible_facts.board_vendor == 'Framework'"
+
+    - name: Install Wireguard on Laptop
+      ansible.builtin.dnf:
+        name: wireguard-tools
+        update_cache: yes
+        state: present
+      when: ansible_facts.form_factor == 'Notebook'
+
+#    - name: Enable signal repo
+#      ansible.builtin.command:
+#        cmd: dnf config-manager addrepo --from-repofile=https://download.opensuse.org/repositories/network:im:signal/Fedora_Rawhide/network:im:signal.repo
+#        creates: /etc/yum.repos.d/network:im:signal.repo
+
+#    - name: Install signal-desktop
+#      ansible.builtin.dnf:
+#        name: ["signal-desktop"]
+#        update_cache: yes
+#        state: present
+
+
