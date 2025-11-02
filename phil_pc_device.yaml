@@ -14,9 +14,9 @@
       ansible.builtin.package_facts:
         manager: auto
 
-    - name: Show facts available on the system
-      ansible.builtin.debug:
-        var: ansible_facts
+#    - name: Show facts available on the system
+#      ansible.builtin.debug:
+#        var: ansible_facts
 
     - name: Install dnf plugins
       ansible.builtin.dnf:
@@ -77,7 +77,7 @@
 
     - name: Generic tools
       ansible.builtin.dnf:
-        name: ["mc", "htop", "console-setup", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
+        name: ["mc", "htop", "nvtop", "console-setup", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
                "fish", "podman", "pylsp", "python3-pyOpenSSL", "pip", "virt-install", "virt-manager",
                "lnav"]
         update_cache: yes
