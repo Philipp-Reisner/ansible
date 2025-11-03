@@ -238,10 +238,22 @@
       register: mitigations
       when: ansible_facts.form_factor in ['Notebook', 'Desktop']
 
+    - name: Find swap partition
+      ansible.builtin.shell: lsblk --noheadings -o UUID $(grep -E -v "zram|Filename" /proc/swaps | cut -f 1 -d " ")
+      register: swap_dev_uuid
+
+    - name: Enable hibernate (suspend to disk)
+      ansible.builtin.replace:
+        path: /etc/default/grub
+        regexp: '^GRUB_CMDLINE_LINUX="(?!resume=)(.*)"$'
+        replace: 'GRUB_CMDLINE_LINUX="resume=UUID={{ swap_dev_uuid.stdout }} \1"'
+      register: enable_hibernate
+      when: ansible_facts.form_factor in ['Notebook', 'Desktop']
+
     - name: Regenerate grub config after touching default/grub
       ansible.builtin.command:
         cmd: grub2-mkconfig -o /etc/grub2.cfg
-      when: ansible_facts.form_factor in ['Notebook', 'Desktop'] and mitigations.changed
+      when: ansible_facts.form_factor in ['Notebook', 'Desktop'] and ( mitigations.changed or enable_hibernate.changed )
 
     - name: Framework Laptop specifics repo
       ansible.builtin.command:
