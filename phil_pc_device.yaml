@@ -210,6 +210,19 @@
         name: ["steam", "kmod-v4l2loopback", "v4l2loopback", "obs-studio-plugin-x264"]
         state: present
 
+    - name: Make Linux great again (disable mitigations)
+      ansible.builtin.replace:
+        path: /etc/default/grub
+        regexp: '^GRUB_CMDLINE_LINUX="(.*)"$'
+        replace: 'GRUB_CMDLINE_LINUX="\1 mitigations=off"'
+      register: mitigations
+      when: ansible_facts.form_factor in ['Notebook', 'Desktop']
+
+    - name: Regenerate grub config after touching default/grub
+      ansible.builtin.command:
+        cmd: grub2-mkconfig -o /etc/grub2.cfg
+      when: ansible_facts.form_factor in ['Notebook', 'Desktop'] and mitigations.changed
+
     - name: Framework Laptop specifics repo
       ansible.builtin.command:
         cmd: dnf copr enable bsvh/fw-ectool --assumeyes
@@ -229,6 +242,21 @@
         update_cache: yes
         state: present
       when: ansible_facts.form_factor == 'Notebook'
+
+    - name: Check WoL
+      ansible.builtin.lineinfile:
+        path: /etc/NetworkManager/system-connections/Kabelgebundene Verbindung 1.nmconnection
+        regexp: '^wake-on-lan='
+        state: absent
+      check_mode: yes
+      changed_when: false
+      register: wake_on_lan
+      when: ansible_facts.form_factor == 'Desktop'
+
+    - name: Enable WoL
+      ansible.builtin.command:
+        cmd: nmcli connection modify "Kabelgebundene Verbindung 1" 802-3-ethernet.wake-on-lan magic
+      when: ansible_facts.form_factor == 'Desktop' and "found" not in wake_on_lan
 
 #    - name: Enable signal repo
 #      ansible.builtin.command:
