@@ -48,6 +48,7 @@
         uid: "{{ item.uid }}"
         group: "{{ item.group }}"
         groups: "{{ item.groups }}"
+        append: true
         state: present
       loop:
         - { user: 'phil', comment: 'Philipp Reisner', uid: 1001, group: 'phil', groups: 'phil,mp3,wheel' }
@@ -148,6 +149,13 @@
         path: /etc/nsswitch.conf
         regexp: 'mdns4_minimal \['
         replace: 'mdns4_minimal libvirt_guest ['
+
+    - name: Add phil to libvirt group
+      ansible.builtin.user:
+        name: phil
+        groups: libvirt
+        append: true
+        state: present
 
     - name: NFS mounts for home network
       ansible.builtin.blockinfile:
