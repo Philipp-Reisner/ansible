@@ -1,7 +1,7 @@
 #!/usr/bin/env ansible-playbook
 #
 # dnf install ansible-core
-# ansible-playbook <<this-file>>
+# ansible-playbook --extra-vars "old_root=/mnt/1" <<this-file>>
 #
 # This is my personal Fedora setup
 
@@ -131,8 +131,7 @@
       ansible.builtin.service:
         name: systemd-vconsole-setup.service
         state: restarted
-      when:
-        consolefont_update.changed
+      when: consolefont_update.changed
 
     - name: Set default URI for virsh and libvirt
       ansible.builtin.replace:
@@ -163,9 +162,12 @@
         append: true
         state: present
 
-# TODO. virsh define the previously known VMs
-# But this requires the location of the previous fedora installation
-# for f in /tmp/v/*; virsh define $f; end
+    - name: define VMs
+      ansible.builtin.command:
+        cmd: virsh define {{ item }}
+        creates: /etc/libvirt/qemu/{{ item | basename }}
+      with_fileglob: "{{ old_root }}/etc/libvirt/qemu/*.xml"
+      when: old_root is defined
 
     - name: NFS mounts for home network
       ansible.builtin.blockinfile:
