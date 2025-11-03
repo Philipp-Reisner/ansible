@@ -66,11 +66,17 @@
         update_cache: yes
         state: present
 
-    - name: Install dev tools
+    - name: Install dev tools 1
       ansible.builtin.dnf:
         name: ["emacs", "git", "git-email", "flex", "bison", "kernel-devel", "coccinelle",
                "clang-tools-extra", "bear", "autoconf", "automake", "keyutils-libs-devel",
-               "openssl-devel-engine", "patch", "diffutils", "clitest", "asciidoctor", "po4a",
+               "clang" ]
+        update_cache: yes
+        state: present
+
+    - name: Install dev tools 2
+      ansible.builtin.dnf:
+        name: ["openssl-devel-engine", "patch", "diffutils", "clitest", "asciidoctor", "po4a",
                "libaio-devel.x86_64", "ncurses-devel", "gcc-c++", "wireshark", "tcpdump",
                "strace", "ltrace"]
         update_cache: yes
@@ -156,6 +162,10 @@
         groups: libvirt
         append: true
         state: present
+
+# TODO. virsh define the previously known VMs
+# But this requires the location of the previous fedora installation
+# for f in /tmp/v/*; virsh define $f; end
 
     - name: NFS mounts for home network
       ansible.builtin.blockinfile:
