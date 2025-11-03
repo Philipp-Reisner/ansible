@@ -210,10 +210,10 @@
         name: ["steam", "kmod-v4l2loopback", "v4l2loopback", "obs-studio-plugin-x264"]
         state: present
 
-    - name: Make Linux great again (disable mitigations)
+    - name: Make Linux great again (disable CPU vulnerability mitigations)
       ansible.builtin.replace:
         path: /etc/default/grub
-        regexp: '^GRUB_CMDLINE_LINUX="(.*)"$'
+        regexp: '^GRUB_CMDLINE_LINUX="(.*)(?<! mitigations=off)"$'
         replace: 'GRUB_CMDLINE_LINUX="\1 mitigations=off"'
       register: mitigations
       when: ansible_facts.form_factor in ['Notebook', 'Desktop']
