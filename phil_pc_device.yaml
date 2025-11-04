@@ -45,6 +45,7 @@
       ansible.builtin.shell: grep {{ item }} {{ old_root }}/etc/shadow | cut -f2 -d ":"
       register: pw_hashes
       loop: ["phil", "christine", "quirin"]
+      changed_when: false
       when: old_root is defined
 
     - name: Create users
@@ -248,6 +249,7 @@
     - name: Find swap partition
       ansible.builtin.shell: lsblk --noheadings -o UUID $(grep -E -v "zram|Filename" /proc/swaps | cut -f 1 -d " ")
       register: swap_dev_uuid
+      changed_when: false
 
     - name: Enable hibernate (suspend to disk)
       ansible.builtin.replace:
