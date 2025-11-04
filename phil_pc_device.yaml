@@ -199,6 +199,16 @@
       with_fileglob: "{{ old_root }}/etc/libvirt/qemu/*.xml"
       when: old_root is defined
 
+    - name: Create Mountpoints
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        mode: "{{ item.mode }}"
+        state: directory
+      loop:
+        - { path: /data, mode: 'u=rwx,g=rx,o=rx' }
+        - { path: /mnt/1, mode: 'u=rwx,g=rx,o=rx' }
+        - { path: /home/base/christine, mode: 'u=rwx,g=rx,o=rx' }
+
     - name: NFS mounts for home network
       ansible.builtin.blockinfile:
         path: /etc/fstab
