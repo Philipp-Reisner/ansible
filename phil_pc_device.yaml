@@ -281,7 +281,7 @@
         regexp: '^GRUB_CMDLINE_LINUX="(.*)(?<! mitigations=off)"$'
         replace: 'GRUB_CMDLINE_LINUX="\1 mitigations=off"'
       register: mitigations
-      when: ansible_facts.form_factor in ['Notebook', 'Desktop']
+      when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop']
 
     - name: Find swap partition
       ansible.builtin.shell: lsblk --noheadings -o UUID $(grep -E -v "zram|Filename" /proc/swaps | cut -f 1 -d " ")
@@ -294,12 +294,12 @@
         regexp: '^GRUB_CMDLINE_LINUX="(?!resume=)(.*)"$'
         replace: 'GRUB_CMDLINE_LINUX="resume=UUID={{ swap_dev_uuid.stdout }} \1"'
       register: enable_hibernate
-      when: ansible_facts.form_factor in ['Notebook', 'Desktop']
+      when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop']
 
     - name: Regenerate grub config after touching default/grub
       ansible.builtin.command:
         cmd: grub2-mkconfig -o /etc/grub2.cfg
-      when: ansible_facts.form_factor in ['Notebook', 'Desktop'] and ( mitigations.changed or enable_hibernate.changed )
+      when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop'] and ( mitigations.changed or enable_hibernate.changed )
 
     - name: Framework Laptop specifics repo
       ansible.builtin.command:
@@ -319,7 +319,7 @@
         name: wireguard-tools
         update_cache: yes
         state: present
-      when: ansible_facts.form_factor == 'Notebook'
+      when: ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
 
     - name: Check WoL
       ansible.builtin.lineinfile:
