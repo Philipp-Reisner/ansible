@@ -54,20 +54,36 @@
       changed_when: false
       when: old_root is defined
 
-    - name: Create users
+    - name: Ensure users exist (with password hashes)
       ansible.builtin.user:
         name: "{{ item.user }}"
         comment: "{{ item.comment }}"
         uid: "{{ item.uid }}"
         group: "{{ item.group }}"
         groups: "{{ item.groups }}"
-        password: "{{ (pw_hashes.results | selectattr('item', 'equalto', item.user) | first).stdout if pw_hashes is defined else none }}"
+        password: "{{ (pw_hashes.results | selectattr('item', 'equalto', item.user) | first).stdout }}"
         append: true
         state: present
       loop:
         - { user: 'phil', comment: 'Philipp Reisner', uid: 1001, group: 'phil', groups: 'phil,mp3,wheel' }
         - { user: 'christine', comment: 'Christine Berger', uid: 1004, group: 'christine', groups: 'christine,mp3,wheel' }
         - { user: 'quirin', comment: 'Quirin Berger', uid: 1005, group: 'quirin', groups: 'quirin,mp3' }
+      when: old_root is defined and pw_hashes is defined and pw_hashes.results is defined
+
+    - name: Ensure users exist
+      ansible.builtin.user:
+        name: "{{ item.user }}"
+        comment: "{{ item.comment }}"
+        uid: "{{ item.uid }}"
+        group: "{{ item.group }}"
+        groups: "{{ item.groups }}"
+        append: true
+        state: present
+      loop:
+        - { user: 'phil', comment: 'Philipp Reisner', uid: 1001, group: 'phil', groups: 'phil,mp3,wheel' }
+        - { user: 'christine', comment: 'Christine Berger', uid: 1004, group: 'christine', groups: 'christine,mp3,wheel' }
+        - { user: 'quirin', comment: 'Quirin Berger', uid: 1005, group: 'quirin', groups: 'quirin,mp3' }
+      when: not (old_root is defined and pw_hashes is defined and pw_hashes.results is defined)
 
     - name: Enable Fedora Copr Ubuntu fonts
       ansible.builtin.command:
