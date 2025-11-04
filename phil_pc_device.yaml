@@ -30,7 +30,7 @@
         state: started
         enabled: yes
 
-    - name: Create group
+    - name: Create groups
       ansible.builtin.group:
         name: "{{ item.name }}"
         gid: "{{ item.gid }}"
@@ -41,6 +41,12 @@
        - { name: 'christine', gid: 1004 }
        - { name: 'quirin', gid: 1005 }
 
+    - name: Extract previous password hashes
+      ansible.builtin.shell: grep {{ item }} {{ old_root }}/etc/shadow | cut -f2 -d ":"
+      register: pw_hashes
+      loop: ["phil", "christine", "quirin"]
+      when: old_root is defined
+
     - name: Create users
       ansible.builtin.user:
         name: "{{ item.user }}"
@@ -48,6 +54,7 @@
         uid: "{{ item.uid }}"
         group: "{{ item.group }}"
         groups: "{{ item.groups }}"
+        password: "{{ (pw_hashes.results | selectattr('item', 'equalto', item.user) | first).stdout if pw_hashes is defined else none }}"
         append: true
         state: present
       loop:
