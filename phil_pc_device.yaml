@@ -209,12 +209,13 @@
         - { path: /mnt/1, mode: 'u=rwx,g=rx,o=rx' }
         - { path: /home/base/christine, mode: 'u=rwx,g=rx,o=rx' }
 
+# Do not use hostnames for the NFS server, as it can resolve to ipv6
     - name: NFS mounts for home network
       ansible.builtin.blockinfile:
         path: /etc/fstab
         block: |
-          base.home:/data /data/ nfs rsize=8192,wsize=8192,timeo=14,intr,noauto,user 0 0
-          base.home:/home/christine /home/base/christine nfs rsize=8192,wsize=8192,timeo=14,intr,noauto,user 0 0
+          192.168.0.7:/data /data/ nfs rsize=8192,wsize=8192,timeo=14,noauto,user 0 0
+          192.168.0.7:/home/christine /home/base/christine nfs rsize=8192,wsize=8192,timeo=14,noauto,user 0 0
         insertafter: EOF
       register: fstab_touched
 
