@@ -3,7 +3,13 @@
 # dnf install ansible-core
 # ansible-playbook --extra-vars "old_root=/mnt/1" <<this-file>>
 #
-# This is my personal Fedora setup
+# This is my personal Fedora setup.
+#
+# I usually install a new release with the root_fs on a fresh,
+# dedicated LV, keeping the previous Fedora releases' root_fs
+# around. After I boot into the fresh installation, I mount the
+# previous root_fs onto /mnt/1 and pass that mountpoint as old_root to
+# the Ansible playbook.
 
 - hosts: localhost
   connection: local
