@@ -116,7 +116,7 @@
       ansible.builtin.dnf:
         name: ["mc", "htop", "nvtop", "console-setup", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
                "fish", "podman", "pylsp", "python3-pyOpenSSL", "pip", "virt-install", "virt-manager",
-               "lnav"]
+               "lnav", "lshw"]
         update_cache: yes
         state: present
 
@@ -227,33 +227,48 @@
         cmd: dnf swap ffmpeg-free ffmpeg --allowerasing --assumeyes
       when: "'ffmpeg' not in ansible_facts.packages"
 
+    - name: Check GPU type
+      ansible.builtin.shell: lshw -class display -json | jq -r '.[].vendor'
+      register: gpu_type
+      changed_when: false
+
     - name: Switch to hardware codecs with AMD 1/4 from rpmfusion
       ansible.builtin.command:
         cmd: dnf swap mesa-va-drivers mesa-va-drivers-freeworld --assumeyes
       when: |
+        gpu_type.stdout.startswith('Advanced Micro Devices') and (
         "mesa-va-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') == []
+        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') == [] )
 
     - name: Switch to hardware codecs with AMD 2/4 from rpmfusion
       ansible.builtin.command:
         cmd: dnf swap mesa-vdpau-drivers mesa-vdpau-drivers-freeworld --assumeyes
       when: |
+        gpu_type.stdout.startswith('Advanced Micro Devices') and (
         "mesa-vdpau-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') == []
+        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') == [] )
 
     - name: Switch to hardware codecs with AMD 3/4 from rpmfusion
       ansible.builtin.command:
         cmd: dnf swap mesa-va-drivers.i686 mesa-va-drivers-freeworld.i686 --assumeyes
       when: |
+        gpu_type.stdout.startswith('Advanced Micro Devices') and (
         "mesa-va-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') == []
+        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') == [] )
 
     - name: Switch to hardware codecs with AMD 4/4 from rpmfusion
       ansible.builtin.command:
         cmd: dnf swap mesa-vdpau-drivers.i686 mesa-vdpau-drivers-freeworld.i686 --assumeyes
       when: |
+        gpu_type.stdout.startswith('Advanced Micro Devices') and (
         "mesa-vdpau-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') == []
+        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') == [] )
+
+    - name: Switch to hardware codecs with Intel from rpmfusion
+      ansible.builtin.dnf:
+        name: [ "intel-media-driver", "libva-intel-driver" ]
+      when: |
+        gpu_type.stdout == 'Intel Corporation'
 
     - name: Install Steam and v4l2loopback from rpmfusion
       ansible.builtin.dnf:
