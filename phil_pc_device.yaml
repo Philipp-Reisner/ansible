@@ -116,7 +116,7 @@
       ansible.builtin.dnf:
         name: ["mc", "htop", "nvtop", "console-setup", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
                "fish", "podman", "pylsp", "python3-pyOpenSSL", "pip", "virt-install", "virt-manager",
-               "lnav", "lshw"]
+               "lnav", "lshw", "bsdtar"]
         update_cache: yes
         state: present
 
