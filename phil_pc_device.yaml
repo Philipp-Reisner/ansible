@@ -307,6 +307,18 @@
       register: enable_hibernate
       when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop']
 
+    - name: Enable resume from hibernation
+      ansible.builtin.lineinfile:
+        path: /etc/dracut.conf.d/resume.conf
+        line: add_dracutmodules+=" resume "
+        create: yes
+      register: dracut_resume
+
+    - name: Regenerate initramfs
+      ansible.builtin.command:
+        cmd: dracut --force
+      when: dracut_resume.changed
+
     - name: Regenerate grub config after touching default/grub
       ansible.builtin.command:
         cmd: grub2-mkconfig -o /etc/grub2.cfg
