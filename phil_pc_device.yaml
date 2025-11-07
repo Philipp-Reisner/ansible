@@ -199,30 +199,28 @@
       with_fileglob: "{{ old_root }}/etc/libvirt/qemu/*.xml"
       when: old_root is defined
 
-    - name: Create Mountpoints
+    - name: Create Mountpoints /mnt/1 /mnt/2
       ansible.builtin.file:
         path: "{{ item.path }}"
         mode: "{{ item.mode }}"
         state: directory
       loop:
-        - { path: /data, mode: 'u=rwx,g=rx,o=rx' }
         - { path: /mnt/1, mode: 'u=rwx,g=rx,o=rx' }
-        - { path: /home/base/christine, mode: 'u=rwx,g=rx,o=rx' }
+        - { path: /mnt/2, mode: 'u=rwx,g=rx,o=rx' }
 
 # Do not use hostnames for the NFS server, as it can resolve to ipv6
     - name: NFS mounts for home network
-      ansible.builtin.blockinfile:
-        path: /etc/fstab
-        block: |
-          192.168.0.7:/data /data/ nfs rsize=8192,wsize=8192,timeo=14,noauto,user 0 0
-          192.168.0.7:/home/christine /home/base/christine nfs rsize=8192,wsize=8192,timeo=14,noauto,user 0 0
-        insertafter: EOF
-      register: fstab_touched
-
-    - name: Run systemctl daemon-reload after adding lines to /etc/fstab
-      ansible.builtin.systemd_service:
-        daemon_reload: true
-      when: fstab_touched.changed
+      ansible.posix.mount:
+        src: "{{ item.src }}"
+        path: "{{ item.path }}"
+        fstype: nfs
+        opts: rsize=8192,wsize=8192,timeo=14,user,soft
+        state: "{{ 'present' if ansible_facts.form_factor in ['Notebook', 'Laptop'] else
+                   ( 'mounted' if ansible_facts.form_factor == 'Desktop' else 'absent' ) }}"
+        boot: "{{ ansible_facts.form_factor == 'Desktop' }}"
+      loop:
+        - { src: 192.168.0.7:/data, path: /data }
+        - { src: 192.168.0.7:/home/christine, path: /home/base/christine }
 
     - name: Enable rpmfusion repos
       ansible.builtin.dnf:
