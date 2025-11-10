@@ -108,7 +108,7 @@
       ansible.builtin.dnf:
         name: ["openssl-devel-engine", "patch", "diffutils", "clitest", "asciidoctor", "po4a",
                "libaio-devel.x86_64", "ncurses-devel", "gcc-c++", "wireshark", "tcpdump",
-               "strace", "ltrace"]
+               "strace", "ltrace", "pandoc"]
         update_cache: yes
         state: present
 
