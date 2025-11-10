@@ -357,6 +357,13 @@
         cmd: nmcli connection modify "Kabelgebundene Verbindung 1" 802-3-ethernet.wake-on-lan magic
       when: ansible_facts.form_factor == 'Desktop' and "found" not in wake_on_lan
 
+    - name: Get previous Wireguard config
+      ansible.builtin.copy:
+        src: "{{ old_root }}/etc/wireguard"
+        dest: /etc/wireguard
+        remote_src: true
+      when: old_root is defined and ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
+
 #    - name: Enable signal repo
 #      ansible.builtin.command:
 #        cmd: dnf config-manager addrepo --from-repofile=https://download.opensuse.org/repositories/network:im:signal/Fedora_Rawhide/network:im:signal.repo
