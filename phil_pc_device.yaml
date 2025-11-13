@@ -108,7 +108,7 @@
       ansible.builtin.dnf:
         name: ["openssl-devel-engine", "patch", "diffutils", "clitest", "asciidoctor", "po4a",
                "libaio-devel.x86_64", "ncurses-devel", "gcc-c++", "wireshark", "tcpdump",
-               "strace", "ltrace", "pandoc"]
+               "strace", "ltrace", "pandoc", "pyproject-rpm-macros", "pyp2rpm", "python3-devel" ]
         update_cache: yes
         state: present
 
@@ -116,7 +116,7 @@
       ansible.builtin.dnf:
         name: ["mc", "htop", "nvtop", "console-setup", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
                "fish", "podman", "pylsp", "python3-pyOpenSSL", "pip", "virt-install", "virt-manager",
-               "lnav", "lshw", "bsdtar"]
+               "lnav", "lshw", "bsdtar", "calc"]
         update_cache: yes
         state: present
 
