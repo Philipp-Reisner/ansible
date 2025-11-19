@@ -365,10 +365,15 @@
 
     - name: Get previous Wireguard config
       ansible.builtin.copy:
-        src: "{{ old_root }}/etc/wireguard"
-        dest: /etc/wireguard
+        src: "{{ old_root }}/etc/wireguard/"
+        dest: /etc/wireguard/
         remote_src: true
       when: old_root is defined and ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
+
+# Run as user:
+# nmcli connection import type wireguard file /tmp/linbit.conf
+# nmcli connection import type wireguard file /tmp/base.conf
+
 
 #    - name: Enable signal repo
 #      ansible.builtin.command:
@@ -380,5 +385,4 @@
 #        name: ["signal-desktop"]
 #        update_cache: yes
 #        state: present
-
 
