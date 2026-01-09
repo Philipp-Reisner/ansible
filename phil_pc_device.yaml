@@ -108,7 +108,8 @@
       ansible.builtin.dnf:
         name: ["openssl-devel-engine", "patch", "diffutils", "clitest", "asciidoctor", "po4a",
                "libaio-devel.x86_64", "ncurses-devel", "gcc-c++", "wireshark", "tcpdump",
-               "strace", "ltrace", "pandoc", "pyproject-rpm-macros", "pyp2rpm", "python3-devel" ]
+               "strace", "ltrace", "pandoc", "pyproject-rpm-macros", "pyp2rpm", "python3-devel",
+               "python3-flake8" ]
         update_cache: yes
         state: present
 
@@ -122,7 +123,7 @@
       ansible.builtin.dnf:
         name: ["mc", "htop", "nvtop", "btop", "console-setup", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
                "fish", "podman", "pylsp", "python3-pyOpenSSL", "pip", "virt-install", "virt-manager",
-               "lnav", "lshw", "bsdtar", "calc", "libguestfs-tools" ]
+               "lnav", "lshw", "bsdtar", "calc", "libguestfs-tools", "guestfs-tools" ]
         update_cache: yes
         state: present
 
@@ -369,6 +370,9 @@
         dest: /etc/wireguard/
         remote_src: true
       when: old_root is defined and ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
+
+
+#install k3b if a CDROM drive is present
 
 # Run as user:
 # nmcli connection import type wireguard file /tmp/linbit.conf
