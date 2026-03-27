@@ -115,7 +115,18 @@
 
     - name: Install dev tools 3
       ansible.builtin.dnf:
-        name: ["cargo"]
+        name: ["cargo", "nodejs", "npm", "difftastic"]
+        update_cache: yes
+        state: present
+
+    - name: Enable Fedora Copr Mergiraf
+      ansible.builtin.command:
+        cmd: dnf copr enable patrickl/dev --assumeyes
+        creates: /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:patrickl:dev.repo
+
+    - name: Install Mergiraf
+      ansible.builtin.dnf:
+        name: ["mergiraf"]
         update_cache: yes
         state: present
 
