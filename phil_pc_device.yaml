@@ -109,7 +109,7 @@
         name: ["openssl-devel-engine", "patch", "diffutils", "clitest", "asciidoctor", "po4a",
                "libaio-devel.x86_64", "ncurses-devel", "gcc-c++", "wireshark", "tcpdump",
                "strace", "ltrace", "pandoc", "pyproject-rpm-macros", "pyp2rpm", "python3-devel",
-               "python3-flake8" ]
+               "python3-flake8", "python3-build" ]
         update_cache: yes
         state: present
 
