@@ -393,9 +393,27 @@
         state: present
       when: ansible_facts.devices.keys() | select('match', '^sr\\d+$') | list | length > 0
 
-# Run as user:
-# nmcli connection import type wireguard file /tmp/linbit.conf
-# nmcli connection import type wireguard file /tmp/base.conf
+    - name: List existing NetworkManager connections
+      ansible.builtin.command:
+        cmd: nmcli -t -f TYPE,NAME connection show
+      become_user: phil
+      register: nm_connections_raw
+      changed_when: false
+      when: ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
+
+    - name: Filter wireguard connections
+      ansible.builtin.set_fact:
+        nm_wg_connections: "{{ nm_connections_raw.stdout_lines | default([]) | select('match', '^wireguard:') | map('regex_replace', '^wireguard:', '') | list }}"
+      when: ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
+
+    - name: Import Wireguard connection configs
+      ansible.builtin.command:
+        cmd: "nmcli connection import type wireguard file {{ item }}"
+      become_user: phil
+      loop:
+        - /etc/wireguard/linbit.conf
+        - /etc/wireguard/base.conf
+      when: ansible_facts.form_factor in [ 'Notebook', 'Laptop' ] and (item | basename | splitext | first) not in nm_wg_connections
 
 
 #    - name: Enable signal repo
