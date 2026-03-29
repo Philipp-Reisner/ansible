@@ -221,14 +221,14 @@
       ansible.builtin.file:
         path: "{{ item.path }}"
         mode: "{{ item.mode }}"
-        owner: "{{ item.ug }}"
-        group: "{{ item.ug }}"
+        owner: "{{ item.o }}"
+        group: "{{ item.g }}"
         state: directory
       loop:
-        - { path: /mnt/1, mode: 'u=rwx,g=rx,o=rx', ug: root }
-        - { path: /mnt/2, mode: 'u=rwx,g=rx,o=rx', ug: root }
-        - { path: /home/base/christine, mode: 'u=rwx,g=rx,o=rx', ug: christine }
-        - { path: /home/base/phil, mode: 'u=rwx,g=rx,o=rx', ug: phil }
+        - { path: /mnt/1, mode: 'u=rwx,g=rx,o=rx', o: root, g: root }
+        - { path: /mnt/2, mode: 'u=rwx,g=rx,o=rx', o: root, g: root }
+        - { path: /home/base/christine, mode: 'u=rwx,g=rx,o=rx', o: christine, g: christine }
+        - { path: /home/base/phil, mode: 'u=rwx,g=rx,o=rx', o: phil, g: phil }
 
 # Do not use hostnames for the NFS server, as it can resolve to ipv6
     - name: NFS mounts for home network
