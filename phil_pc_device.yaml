@@ -217,14 +217,18 @@
       with_fileglob: "{{ old_root }}/etc/libvirt/qemu/*.xml"
       when: old_root is defined
 
-    - name: Create Mountpoints /mnt/1 /mnt/2
+    - name: Create Mountpoints /mnt/1 /mnt/2 and homes on NFS
       ansible.builtin.file:
         path: "{{ item.path }}"
         mode: "{{ item.mode }}"
+        owner: "{{ item.ug }}"
+        group: "{{ item.ug }}"
         state: directory
       loop:
-        - { path: /mnt/1, mode: 'u=rwx,g=rx,o=rx' }
-        - { path: /mnt/2, mode: 'u=rwx,g=rx,o=rx' }
+        - { path: /mnt/1, mode: 'u=rwx,g=rx,o=rx', ug: root }
+        - { path: /mnt/2, mode: 'u=rwx,g=rx,o=rx', ug: root }
+        - { path: /home/base/christine, mode: 'u=rwx,g=rx,o=rx', ug: christine }
+        - { path: /home/base/phil, mode: 'u=rwx,g=rx,o=rx', ug: phil }
 
 # Do not use hostnames for the NFS server, as it can resolve to ipv6
     - name: NFS mounts for home network
