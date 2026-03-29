@@ -387,8 +387,11 @@
         remote_src: true
       when: old_root is defined and ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
 
-
-#install k3b if a CDROM drive is present
+    - name: Install k3b if a CDROM drive is present
+      ansible.builtin.dnf:
+        name: k3b
+        state: present
+      when: ansible_facts.devices.keys() | select('match', '^sr\\d+$') | list | length > 0
 
 # Run as user:
 # nmcli connection import type wireguard file /tmp/linbit.conf
