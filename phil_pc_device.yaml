@@ -187,16 +187,6 @@
         regexp: '^#uri_default.*'
         replace: 'uri_default = "qemu:///system"'
 
-    - name: Create default storage pool for virsh and libvirt
-      ansible.builtin.command:
-        cmd: virsh pool-define-as --name default --type dir --target /var/lib/libvirt/images
-        creates: /etc/libvirt/storage/default.xml
-
-    - name: Autostart default storage pool for virsh and libvirt
-      ansible.builtin.command:
-        cmd: virsh pool-autostart default
-        creates: /etc/libvirt/storage/autostart/default.xml
-
     - name: Configure NSS to resove virtual machines
       ansible.builtin.replace:
         path: /etc/nsswitch.conf
@@ -209,13 +199,6 @@
         groups: libvirt
         append: true
         state: present
-
-    - name: define VMs
-      ansible.builtin.command:
-        cmd: virsh define {{ item }}
-        creates: /etc/libvirt/qemu/{{ item | basename }}
-      with_fileglob: "{{ old_root }}/etc/libvirt/qemu/*.xml"
-      when: old_root is defined
 
     - name: Create Mountpoints /mnt/1 /mnt/2 and homes on NFS
       ansible.builtin.file:
@@ -251,13 +234,22 @@
         state: present
         disable_gpg_check: yes
       with_items:
-        - "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_distribution_major_version}}.noarch.rpm"
-        - "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ansible_distribution_major_version}}.noarch.rpm"
+        - "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-{{ansible_facts['distribution_major_version']}}.noarch.rpm"
+        - "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-{{ansible_facts['distribution_major_version']}}.noarch.rpm"
 
     - name: Switch to full ffmpeg from rpmfusion
       ansible.builtin.command:
         cmd: dnf swap ffmpeg-free ffmpeg --allowerasing --assumeyes
       when: "'ffmpeg' not in ansible_facts.packages"
+
+    - name: Upgrade mesa packages before swapping drivers
+      ansible.builtin.dnf:
+        name: mesa*
+        state: latest
+
+    - name: Refresh package facts after mesa upgrade
+      ansible.builtin.package_facts:
+        manager: auto
 
     - name: Check GPU type
       ansible.builtin.shell: lshw -class display -json | jq -r '.[].vendor'
@@ -268,33 +260,41 @@
       ansible.builtin.command:
         cmd: dnf swap mesa-va-drivers mesa-va-drivers-freeworld --assumeyes
       when: |
-        gpu_type.stdout.startswith('Advanced Micro Devices') and (
+        gpu_type.stdout.startswith('Advanced Micro Devices') and
+        "mesa-va-drivers" in ansible_facts.packages and
+        ansible_facts.packages["mesa-va-drivers"] | selectattr('arch', 'equalto', 'x86_64') | list | length > 0 and (
         "mesa-va-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') == [] )
+        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') | list | length == 0 )
 
     - name: Switch to hardware codecs with AMD 2/4 from rpmfusion
       ansible.builtin.command:
         cmd: dnf swap mesa-vdpau-drivers mesa-vdpau-drivers-freeworld --assumeyes
       when: |
-        gpu_type.stdout.startswith('Advanced Micro Devices') and (
+        gpu_type.stdout.startswith('Advanced Micro Devices') and
+        "mesa-vdpau-drivers" in ansible_facts.packages and
+        ansible_facts.packages["mesa-vdpau-drivers"] | selectattr('arch', 'equalto', 'x86_64') | list | length > 0 and (
         "mesa-vdpau-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') == [] )
+        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') | list | length == 0 )
 
     - name: Switch to hardware codecs with AMD 3/4 from rpmfusion
       ansible.builtin.command:
         cmd: dnf swap mesa-va-drivers.i686 mesa-va-drivers-freeworld.i686 --assumeyes
       when: |
-        gpu_type.stdout.startswith('Advanced Micro Devices') and (
+        gpu_type.stdout.startswith('Advanced Micro Devices') and
+        "mesa-va-drivers" in ansible_facts.packages and
+        ansible_facts.packages["mesa-va-drivers"] | selectattr('arch', 'equalto', 'i686') | list | length > 0 and (
         "mesa-va-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') == [] )
+        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') | list | length == 0 )
 
     - name: Switch to hardware codecs with AMD 4/4 from rpmfusion
       ansible.builtin.command:
         cmd: dnf swap mesa-vdpau-drivers.i686 mesa-vdpau-drivers-freeworld.i686 --assumeyes
       when: |
-        gpu_type.stdout.startswith('Advanced Micro Devices') and (
+        gpu_type.stdout.startswith('Advanced Micro Devices') and
+        "mesa-vdpau-drivers" in ansible_facts.packages and
+        ansible_facts.packages["mesa-vdpau-drivers"] | selectattr('arch', 'equalto', 'i686') | list | length > 0 and (
         "mesa-vdpau-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') == [] )
+        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') | list | length == 0 )
 
     - name: Switch to hardware codecs with Intel from rpmfusion
       ansible.builtin.dnf:
@@ -409,12 +409,27 @@
     - name: Import Wireguard connection configs
       ansible.builtin.command:
         cmd: "nmcli connection import type wireguard file {{ item }}"
-      become_user: phil
       loop:
         - /etc/wireguard/linbit.conf
         - /etc/wireguard/base.conf
       when: ansible_facts.form_factor in [ 'Notebook', 'Laptop' ] and (item | basename | splitext | first) not in nm_wg_connections
 
+    - name: Create default storage pool for virsh and libvirt
+      ansible.builtin.command:
+        cmd: virsh pool-define-as --name default --type dir --target /var/lib/libvirt/images
+        creates: /etc/libvirt/storage/default.xml
+
+    - name: Autostart default storage pool for virsh and libvirt
+      ansible.builtin.command:
+        cmd: virsh pool-autostart default
+        creates: /etc/libvirt/storage/autostart/default.xml
+
+    - name: define VMs
+      ansible.builtin.command:
+        cmd: virsh define {{ item }}
+        creates: /etc/libvirt/qemu/{{ item | basename }}
+      with_fileglob: "{{ old_root }}/etc/libvirt/qemu/*.xml"
+      when: old_root is defined
 
 #    - name: Enable signal repo
 #      ansible.builtin.command:
