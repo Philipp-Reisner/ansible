@@ -302,9 +302,20 @@
       when: |
         gpu_type.stdout == 'Intel Corporation'
 
-    - name: Install Steam and v4l2loopback from rpmfusion
+    - name: Install kmod-v4l2loopback from rpmfusion
       ansible.builtin.dnf:
-        name: ["steam", "kmod-v4l2loopback", "v4l2loopback", "obs-studio-plugin-x264"]
+        name: kmod-v4l2loopback
+        state: present
+
+    - name: Install Steam from rpmfusion (only on machines with >=32GB RAM)
+      ansible.builtin.dnf:
+        name: steam
+        state: present
+      when: ansible_facts.memtotal_mb >= 32000
+
+    - name: Install v4l2loopback and obs-studio-plugin-x264 from rpmfusion
+      ansible.builtin.dnf:
+        name: ["v4l2loopback", "obs-studio-plugin-x264"]
         state: present
 
     - name: Make Linux great again (disable CPU vulnerability mitigations)
