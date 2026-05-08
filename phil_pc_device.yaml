@@ -425,13 +425,25 @@
         nm_wg_connections: "{{ nm_connections_raw.stdout_lines | default([]) | select('match', '^wireguard:') | map('regex_replace', '^wireguard:', '') | list }}"
       when: ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
 
-    - name: Import Wireguard connection configs
-      ansible.builtin.command:
-        cmd: "nmcli connection import type wireguard file {{ item }}"
+    - name: Stat Wireguard config files
+      ansible.builtin.stat:
+        path: "{{ item }}"
       loop:
         - /etc/wireguard/linbit.conf
         - /etc/wireguard/base.conf
-      when: ansible_facts.form_factor in [ 'Notebook', 'Laptop' ] and (item | basename | splitext | first) not in nm_wg_connections
+      register: wg_config_stats
+      when: ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
+
+    - name: Import Wireguard connection configs
+      ansible.builtin.command:
+        cmd: "nmcli connection import type wireguard file {{ item.item }}"
+      loop: "{{ wg_config_stats.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item }}"
+      when:
+        - ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
+        - item.stat.exists
+        - (item.item | basename | splitext | first) not in nm_wg_connections
 
     - name: Create default storage pool for virsh and libvirt
       ansible.builtin.command:
