@@ -326,8 +326,13 @@
       register: mitigations
       when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop']
 
-    - name: Find swap partition
-      ansible.builtin.shell: lsblk --noheadings -o UUID $(grep -E -v "zram|Filename" /proc/swaps | cut -f 1 -d " ")
+    - name: Find swap partition (excluding zram)
+      ansible.builtin.shell: |
+        set -o pipefail
+        devs=$(grep -E -v "zram|Filename" /proc/swaps | cut -f 1 -d " ")
+        if [ -n "$devs" ]; then
+          lsblk --noheadings -o UUID $devs
+        fi
       register: swap_dev_uuid
       changed_when: false
 
@@ -337,7 +342,9 @@
         regexp: '^GRUB_CMDLINE_LINUX="(?!resume=)(.*)"$'
         replace: 'GRUB_CMDLINE_LINUX="resume=UUID={{ swap_dev_uuid.stdout }} \1"'
       register: enable_hibernate
-      when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop']
+      when:
+        - ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop']
+        - swap_dev_uuid.stdout | trim != ''
 
     - name: Enable resume from hibernation
       ansible.builtin.lineinfile:
@@ -345,6 +352,7 @@
         line: add_dracutmodules+=" resume "
         create: yes
       register: dracut_resume
+      when: swap_dev_uuid.stdout | trim != ''
 
     - name: Regenerate initramfs
       ansible.builtin.command:
