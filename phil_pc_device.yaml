@@ -86,9 +86,9 @@
       when: not (old_root is defined and pw_hashes is defined and pw_hashes.results is defined)
 
     - name: Enable Fedora Copr Ubuntu fonts
-      ansible.builtin.command:
-        cmd: dnf copr enable atim/ubuntu-fonts --assumeyes
-        creates: /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:atim:ubuntu-fonts.repo
+      community.general.copr:
+        name: atim/ubuntu-fonts
+        state: enabled
 
     - name: Install ubuntu font
       ansible.builtin.dnf:
@@ -120,9 +120,9 @@
         state: present
 
     - name: Enable Fedora Copr Mergiraf
-      ansible.builtin.command:
-        cmd: dnf copr enable patrickl/dev --assumeyes
-        creates: /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:patrickl:dev.repo
+      community.general.copr:
+        name: patrickl/dev
+        state: enabled
 
     - name: Install Mergiraf
       ansible.builtin.dnf:
@@ -201,11 +201,11 @@
         state: present
 
     - name: Enable BlueZ experimental features (needed to pair Logitech BT mouse on F44)
-      ansible.builtin.lineinfile:
+      community.general.ini_file:
         path: /etc/bluetooth/main.conf
-        regexp: '^#?\s*{{ item }}\s*='
-        line: '{{ item }} = true'
-        insertafter: '^\[General\]'
+        section: General
+        option: "{{ item }}"
+        value: "true"
       loop:
         - Experimental
         - KernelExperimental
@@ -273,45 +273,24 @@
       register: gpu_type
       changed_when: false
 
-    - name: Switch to hardware codecs with AMD 1/4 from rpmfusion
+    - name: Switch to hardware codecs with AMD from rpmfusion
       ansible.builtin.command:
-        cmd: dnf swap mesa-va-drivers mesa-va-drivers-freeworld --assumeyes
+        cmd: "dnf swap {{ item.pkg }}{{ suffix }} {{ item.pkg }}-freeworld{{ suffix }} --assumeyes"
+      vars:
+        suffix: "{{ '.i686' if item.arch == 'i686' else '' }}"
+      loop:
+        - { pkg: 'mesa-va-drivers',    arch: 'x86_64' }
+        - { pkg: 'mesa-vdpau-drivers', arch: 'x86_64' }
+        - { pkg: 'mesa-va-drivers',    arch: 'i686'   }
+        - { pkg: 'mesa-vdpau-drivers', arch: 'i686'   }
+      loop_control:
+        label: "{{ item.pkg }} ({{ item.arch }})"
       when: |
         gpu_type.stdout.startswith('Advanced Micro Devices') and
-        "mesa-va-drivers" in ansible_facts.packages and
-        ansible_facts.packages["mesa-va-drivers"] | selectattr('arch', 'equalto', 'x86_64') | list | length > 0 and (
-        "mesa-va-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') | list | length == 0 )
-
-    - name: Switch to hardware codecs with AMD 2/4 from rpmfusion
-      ansible.builtin.command:
-        cmd: dnf swap mesa-vdpau-drivers mesa-vdpau-drivers-freeworld --assumeyes
-      when: |
-        gpu_type.stdout.startswith('Advanced Micro Devices') and
-        "mesa-vdpau-drivers" in ansible_facts.packages and
-        ansible_facts.packages["mesa-vdpau-drivers"] | selectattr('arch', 'equalto', 'x86_64') | list | length > 0 and (
-        "mesa-vdpau-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'x86_64') | list | length == 0 )
-
-    - name: Switch to hardware codecs with AMD 3/4 from rpmfusion
-      ansible.builtin.command:
-        cmd: dnf swap mesa-va-drivers.i686 mesa-va-drivers-freeworld.i686 --assumeyes
-      when: |
-        gpu_type.stdout.startswith('Advanced Micro Devices') and
-        "mesa-va-drivers" in ansible_facts.packages and
-        ansible_facts.packages["mesa-va-drivers"] | selectattr('arch', 'equalto', 'i686') | list | length > 0 and (
-        "mesa-va-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-va-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') | list | length == 0 )
-
-    - name: Switch to hardware codecs with AMD 4/4 from rpmfusion
-      ansible.builtin.command:
-        cmd: dnf swap mesa-vdpau-drivers.i686 mesa-vdpau-drivers-freeworld.i686 --assumeyes
-      when: |
-        gpu_type.stdout.startswith('Advanced Micro Devices') and
-        "mesa-vdpau-drivers" in ansible_facts.packages and
-        ansible_facts.packages["mesa-vdpau-drivers"] | selectattr('arch', 'equalto', 'i686') | list | length > 0 and (
-        "mesa-vdpau-drivers-freeworld" not in ansible_facts.packages or
-        ansible_facts.packages["mesa-vdpau-drivers-freeworld"] | selectattr('arch', 'equalto', 'i686') | list | length == 0 )
+        item.pkg in ansible_facts.packages and
+        ansible_facts.packages[item.pkg] | selectattr('arch', 'equalto', item.arch) | list | length > 0 and (
+        (item.pkg + "-freeworld") not in ansible_facts.packages or
+        ansible_facts.packages[item.pkg + "-freeworld"] | selectattr('arch', 'equalto', item.arch) | list | length == 0 )
 
     - name: Switch to hardware codecs with Intel from rpmfusion
       ansible.builtin.dnf:
@@ -402,9 +381,9 @@
       when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop'] and ( mitigations.changed or enable_hibernate.changed or rd_lvm_lv.changed )
 
     - name: Framework Laptop specifics repo
-      ansible.builtin.command:
-        cmd: dnf copr enable bsvh/fw-ectool --assumeyes
-        creates: /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:bsvh:fw-ectool.repo
+      community.general.copr:
+        name: bsvh/fw-ectool
+        state: enabled
       when: "ansible_facts.board_vendor == 'Framework'"
 
     - name: Framework Laptop firmware tool, and fingerprint reader support
@@ -421,20 +400,13 @@
         state: present
       when: ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
 
-    - name: Check WoL
-      ansible.builtin.lineinfile:
-        path: /etc/NetworkManager/system-connections/Kabelgebundene Verbindung 1.nmconnection
-        regexp: '^wake-on-lan='
-        state: absent
-      check_mode: yes
-      changed_when: false
-      register: wake_on_lan
+    - name: Enable WoL on wired connection
+      community.general.nmcli:
+        conn_name: "Kabelgebundene Verbindung 1"
+        type: ethernet
+        wake_on_lan: magic
+        state: present
       when: ansible_facts.form_factor == 'Desktop'
-
-    - name: Enable WoL
-      ansible.builtin.command:
-        cmd: nmcli connection modify "Kabelgebundene Verbindung 1" 802-3-ethernet.wake-on-lan magic
-      when: ansible_facts.form_factor == 'Desktop' and "found" not in wake_on_lan
 
     - name: Get previous Wireguard config
       ansible.builtin.copy:
