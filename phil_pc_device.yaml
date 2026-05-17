@@ -200,6 +200,23 @@
         append: true
         state: present
 
+    - name: Enable BlueZ experimental features (needed to pair Logitech BT mouse on F44)
+      ansible.builtin.lineinfile:
+        path: /etc/bluetooth/main.conf
+        regexp: '^#?\s*{{ item }}\s*='
+        line: '{{ item }} = true'
+        insertafter: '^\[General\]'
+      loop:
+        - Experimental
+        - KernelExperimental
+      register: bluez_main_conf
+
+    - name: Restart bluetooth service
+      ansible.builtin.service:
+        name: bluetooth
+        state: restarted
+      when: bluez_main_conf.changed
+
     - name: Create Mountpoints /mnt/1 /mnt/2 and homes on NFS
       ansible.builtin.file:
         path: "{{ item.path }}"
