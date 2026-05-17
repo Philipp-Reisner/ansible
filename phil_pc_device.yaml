@@ -336,6 +336,16 @@
       register: swap_dev_uuid
       changed_when: false
 
+    - name: Find swap LVM LV (if swap is on an LV)
+      ansible.builtin.shell: |
+        set -o pipefail
+        dev=$(grep -E -v "zram|Filename" /proc/swaps | cut -f 1 -d " " | head -n1)
+        if [ -n "$dev" ]; then
+          lvs --noheadings -o vg_name,lv_name --separator=/ "$dev" 2>/dev/null | tr -d ' ' || true
+        fi
+      register: swap_lvm_lv
+      changed_when: false
+
     - name: Enable hibernate (suspend to disk)
       ansible.builtin.replace:
         path: /etc/default/grub
@@ -345,6 +355,16 @@
       when:
         - ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop']
         - swap_dev_uuid.stdout | trim != ''
+
+    - name: Activate swap LV from initramfs (required to resume when swap is on LVM)
+      ansible.builtin.replace:
+        path: /etc/default/grub
+        regexp: '^GRUB_CMDLINE_LINUX="(?!.*rd\.lvm\.lv={{ swap_lvm_lv.stdout }})(.*)"$'
+        replace: 'GRUB_CMDLINE_LINUX="\1 rd.lvm.lv={{ swap_lvm_lv.stdout }}"'
+      register: rd_lvm_lv
+      when:
+        - ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop']
+        - swap_lvm_lv.stdout | trim != ''
 
     - name: Enable resume from hibernation
       ansible.builtin.lineinfile:
@@ -362,7 +382,7 @@
     - name: Regenerate grub config after touching default/grub
       ansible.builtin.command:
         cmd: grub2-mkconfig -o /etc/grub2.cfg
-      when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop'] and ( mitigations.changed or enable_hibernate.changed )
+      when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop'] and ( mitigations.changed or enable_hibernate.changed or rd_lvm_lv.changed )
 
     - name: Framework Laptop specifics repo
       ansible.builtin.command:
