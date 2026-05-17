@@ -1,6 +1,6 @@
 #!/usr/bin/env ansible-playbook
 #
-# dnf install ansible-core
+# dnf install ansible-core ansible-collection-ansible-posix ansible-collection-community-general
 # ansible-playbook --extra-vars "old_root=/mnt/1" <<this-file>>
 #
 # This is my personal Fedora setup.
@@ -499,14 +499,21 @@
       with_fileglob: "{{ old_root }}/etc/libvirt/qemu/*.xml"
       when: old_root is defined
 
-#    - name: Enable signal repo
-#      ansible.builtin.command:
-#        cmd: dnf config-manager addrepo --from-repofile=https://download.opensuse.org/repositories/network:im:signal/Fedora_Rawhide/network:im:signal.repo
-#        creates: /etc/yum.repos.d/network:im:signal.repo
+    - name: Install flatpak
+      ansible.builtin.dnf:
+        name: flatpak
+        state: present
 
-#    - name: Install signal-desktop
-#      ansible.builtin.dnf:
-#        name: ["signal-desktop"]
-#        update_cache: yes
-#        state: present
+    - name: Enable Flathub remote system-wide
+      community.general.flatpak_remote:
+        name: flathub
+        flatpakrepo_url: https://dl.flathub.org/repo/flathub.flatpakrepo
+        method: system
+        state: present
+
+    - name: Install Signal Desktop from Flathub
+      community.general.flatpak:
+        name: org.signal.Signal
+        method: system
+        state: present
 
