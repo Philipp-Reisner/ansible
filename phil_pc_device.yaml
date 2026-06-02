@@ -134,7 +134,7 @@
       ansible.builtin.dnf:
         name: ["mc", "htop", "nvtop", "btop", "console-setup", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
                "fish", "podman", "pylsp", "python3-pyOpenSSL", "pip", "virt-install", "virt-manager",
-               "lnav", "lshw", "bsdtar", "calc", "libguestfs-tools", "guestfs-tools" ]
+               "lnav", "lshw", "bsdtar", "calc", "libguestfs-tools", "guestfs-tools", "openldap-clients" ]
         update_cache: yes
         state: present
 
@@ -143,7 +143,7 @@
         name: ["gimp", "inkscape", "qgit", "xournal", "xournalpp",
                "libvirt-daemon-kvm", "libreoffice-langpack-de", "libvirt-nss", "v4l-utils",
                "waypipe", "vlc", "obs-studio", "plasma-nm-fortisslvpn", "libvirt-daemon-config-network",
-               "dejavu-fonts-all"]
+               "dejavu-fonts-all", "tesseract-langpack-deu"]
         update_cache: yes
         state: present
 
