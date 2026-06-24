@@ -489,3 +489,21 @@
         method: system
         state: present
 
+    - name: Install Java runtime (required by Apache Directory Studio)
+      ansible.builtin.dnf:
+        name: java-latest-openjdk
+        state: present
+
+    - name: Download and extract Apache Directory Studio into /opt
+      ansible.builtin.unarchive:
+        src: https://dlcdn.apache.org/directory/studio/2.0.0.v20210717-M17/ApacheDirectoryStudio-2.0.0.v20210717-M17-linux.gtk.x86_64.tar.gz
+        dest: /opt
+        remote_src: true
+        creates: /opt/ApacheDirectoryStudio/ApacheDirectoryStudio
+
+    - name: Symlink Apache Directory Studio launcher into PATH
+      ansible.builtin.file:
+        src: /opt/ApacheDirectoryStudio/ApacheDirectoryStudio
+        dest: /usr/local/bin/ApacheDirectoryStudio
+        state: link
+
