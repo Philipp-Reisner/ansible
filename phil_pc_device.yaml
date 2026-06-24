@@ -520,3 +520,33 @@
         dest: /usr/local/bin/ApacheDirectoryStudio
         state: link
 
+    # ads-tls.security forces TLSv1.2 (disables TLSv1.3 and weak algorithms); the .ini wires
+    # it in via -vmargs. Reason: this ADS build bundles an old Apache MINA (its TLS layer)
+    # that predates TLS 1.3. With TLS 1.3 the server sends post-handshake records (chiefly
+    # NewSessionTicket) interleaved with the application data; MINA's pre-1.3 SslHandler
+    # mishandles the resulting SSLEngine states and never unwraps/dispatches the decrypted
+    # BindResponse. The bind succeeds and slapd replies, but the response never reaches ADS,
+    # so its queue stays empty and after 30 s you get RESPONSE_QUEUE_EMPTIED / TIMEOUT_OCCURED.
+    # Pinning the session to TLS 1.2 avoids the post-handshake path entirely. (Newer ADS
+    # releases ship an updated MINA that handles this correctly.)
+    - name: Configure Apache Directory Studio TLS security policy
+      ansible.builtin.copy:
+        dest: /opt/ApacheDirectoryStudio/ads-tls.security
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          jdk.tls.disabledAlgorithms=SSLv3, TLSv1, TLSv1.1, DTLSv1.0, TLSv1.3, RC4, DES, MD5withRSA, DH keySize < 1024, EC keySize < 224, 3DES_EDE_CBC, anon, NULL, ECDH, TLS_RSA_*, rsa_pkcs1_sha1 usage HandshakeSignature, ecdsa_sha1 usage HandshakeSignature, dsa_sha1 usage HandshakeSignature
+
+    # Inject only our two JVM args into the vendor .ini (rather than rewriting the whole
+    # file) so a future ADS version bump keeps its own build-specific launcher lines.
+    # The block lands right after -vmargs, so both args end up in the JVM args section.
+    - name: Point Apache Directory Studio at the TLS 1.2 security policy
+      ansible.builtin.blockinfile:
+        path: /opt/ApacheDirectoryStudio/ApacheDirectoryStudio.ini
+        insertafter: '^-vmargs$'
+        marker: "# {mark} ANSIBLE MANAGED (force TLS 1.2)"
+        block: |
+          -Djdk.tls.client.protocols=TLSv1.2
+          -Djava.security.properties=/opt/ApacheDirectoryStudio/ads-tls.security
+
