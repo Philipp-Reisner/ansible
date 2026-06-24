@@ -400,13 +400,26 @@
         state: present
       when: ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
 
-    - name: Enable WoL on wired connection
-      community.general.nmcli:
-        conn_name: "Kabelgebundene Verbindung 1"
-        type: ethernet
-        wake_on_lan: magic
-        state: present
+    # The community.general.nmcli module has no wake_on_lan property, so set it via nmcli directly.
+    - name: Get current WoL setting on wired connection
+      ansible.builtin.command:
+        cmd: nmcli -g 802-3-ethernet.wake-on-lan connection show "Kabelgebundene Verbindung 1"
+      register: wol_current
+      changed_when: false
       when: ansible_facts.form_factor == 'Desktop'
+
+    - name: Enable WoL on wired connection
+      ansible.builtin.command:
+        cmd: nmcli connection modify "Kabelgebundene Verbindung 1" 802-3-ethernet.wake-on-lan magic
+      register: wol_set
+      when:
+        - ansible_facts.form_factor == 'Desktop'
+        - "'magic' not in (wol_current.stdout | default(''))"
+
+    - name: Reactivate wired connection to apply WoL
+      ansible.builtin.command:
+        cmd: nmcli connection up "Kabelgebundene Verbindung 1"
+      when: wol_set.changed
 
     - name: Get previous Wireguard config
       ansible.builtin.copy:
