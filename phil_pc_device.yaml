@@ -259,10 +259,17 @@
         cmd: dnf swap ffmpeg-free ffmpeg --allowerasing --assumeyes
       when: "'ffmpeg' not in ansible_facts.packages"
 
-    - name: Upgrade mesa packages before swapping drivers
+    # Only the mesa packages that are already installed, never a glob:
+    # "mesa*" also matches the rpmfusion -freeworld packages (and unrelated
+    # things like mesaflash), so state=latest would pull the AMD codec
+    # drivers onto Intel machines behind the back of the swap task below.
+    - name: Upgrade the installed mesa packages before swapping drivers
       ansible.builtin.dnf:
-        name: mesa*
+        name: "{{ mesa_installed }}"
         state: latest
+      vars:
+        mesa_installed: "{{ ansible_facts.packages.keys() | select('match', '^mesa-') | list }}"
+      when: mesa_installed | length > 0
 
     - name: Refresh package facts after mesa upgrade
       ansible.builtin.package_facts:
@@ -292,9 +299,14 @@
         (item.pkg + "-freeworld") not in ansible_facts.packages or
         ansible_facts.packages[item.pkg + "-freeworld"] | selectattr('arch', 'equalto', item.arch) | list | length == 0 )
 
+    # libva-intel-driver is i965 (up to Haswell/Gen7.5), intel-media-driver
+    # is iHD (Broadwell/Gen8 and newer). libva picks the matching one for the
+    # PCI id at runtime, so install both and let the unused one idle.
+    # There is no VDPAU story on Intel any more (libvdpau-va-gl is retired),
+    # everything goes through VA-API; vainfo from libva-utils shows the result.
     - name: Switch to hardware codecs with Intel from rpmfusion
       ansible.builtin.dnf:
-        name: [ "intel-media-driver", "libva-intel-driver" ]
+        name: [ "intel-media-driver", "libva-intel-driver", "libva-utils" ]
       when: |
         gpu_type.stdout == 'Intel Corporation'
 
@@ -466,6 +478,16 @@
         - ansible_facts.form_factor in [ 'Notebook', 'Laptop' ]
         - item.stat.exists
         - (item.item | basename | splitext | first) not in nm_wg_connections
+
+    - name: Enable and start the libvirt modular daemon sockets
+      ansible.builtin.service:
+        name: "{{ item }}"
+        state: started
+        enabled: yes
+      loop:
+        - virtqemud.socket
+        - virtnetworkd.socket
+        - virtstoraged.socket
 
     - name: Create default storage pool for virsh and libvirt
       ansible.builtin.command:
