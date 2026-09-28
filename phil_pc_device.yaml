@@ -134,7 +134,7 @@
       ansible.builtin.dnf:
         name: ["mc", "htop", "nvtop", "btop", "console-setup", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
                "fish", "podman", "pylsp", "python3-pyOpenSSL", "pip", "virt-install", "virt-manager",
-               "lnav", "lshw", "bsdtar", "calc", "libguestfs-tools", "guestfs-tools", "openldap-clients" ]
+               "lnav", "lshw", "bsdtar", "calc", "libguestfs-tools", "guestfs-tools", "openldap-clients", "glab" ]
         update_cache: yes
         state: present
 
