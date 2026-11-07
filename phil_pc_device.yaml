@@ -106,9 +106,9 @@
 
     - name: Install dev tools 2
       ansible.builtin.dnf:
-        name: ["openssl-devel-engine", "patch", "diffutils", "clitest", "asciidoctor", "po4a",
+        name: ["patch", "diffutils", "clitest", "asciidoctor", "po4a",
                "libaio-devel.x86_64", "ncurses-devel", "gcc-c++", "wireshark", "tcpdump",
-               "strace", "ltrace", "pandoc", "pyproject-rpm-macros", "pyp2rpm", "python3-devel",
+               "strace", "ltrace", "pandoc", "pyproject-rpm-macros", "python3-devel",
                "python3-flake8", "python3-build" ]
         update_cache: yes
         state: present
@@ -132,7 +132,7 @@
 
     - name: Generic tools
       ansible.builtin.dnf:
-        name: ["mc", "htop", "nvtop", "btop", "console-setup", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
+        name: ["mc", "htop", "nvtop", "btop", "mutt", "pwgen", "moreutils", "iproute-tc", "fio",
                "fish", "podman", "pylsp", "python3-pyOpenSSL", "pip", "virt-install", "virt-manager",
                "lnav", "lshw", "bsdtar", "calc", "libguestfs-tools", "guestfs-tools", "openldap-clients", "glab" ]
         update_cache: yes
@@ -142,7 +142,7 @@
       ansible.builtin.dnf:
         name: ["gimp", "inkscape", "qgit", "xournal", "xournalpp",
                "libvirt-daemon-kvm", "libreoffice-langpack-de", "libvirt-nss", "v4l-utils",
-               "waypipe", "vlc", "obs-studio", "plasma-nm-fortisslvpn", "libvirt-daemon-config-network",
+               "waypipe", "vlc", "obs-studio", "NetworkManager-fortisslvpn", "libvirt-daemon-config-network",
                "dejavu-fonts-all", "tesseract-langpack-deu"]
         update_cache: yes
         state: present
@@ -159,27 +159,6 @@
         state: present
         disable_gpg_check: yes
       when: "'zoom' not in ansible_facts.packages"
-
-    - name: Create a symbolic link for consolefont
-      ansible.builtin.file:
-        src: /usr/share/consolefonts/Lat15-Terminus32x16.psf.gz
-        dest: /usr/lib/kbd/consolefonts/Lat15-Terminus32x16.psf.gz
-        owner: root
-        group: root
-        state: link
-
-    - name: Set consolefont
-      ansible.builtin.replace:
-        path: /etc/vconsole.conf
-        regexp: '^FONT=.*'
-        replace: 'FONT=Lat15-Terminus32x16.psf.gz'
-      register: consolefont_update
-
-    - name: Activate consolefont
-      ansible.builtin.service:
-        name: systemd-vconsole-setup.service
-        state: restarted
-      when: consolefont_update.changed
 
     - name: Set default URI for virsh and libvirt
       ansible.builtin.replace:
@@ -329,7 +308,7 @@
     - name: Make Linux great again (disable CPU vulnerability mitigations)
       ansible.builtin.replace:
         path: /etc/default/grub
-        regexp: '^GRUB_CMDLINE_LINUX="(.*)(?<! mitigations=off)"$'
+        regexp: '^GRUB_CMDLINE_LINUX="(?!.*\bmitigations=off\b)(.*)"$'
         replace: 'GRUB_CMDLINE_LINUX="\1 mitigations=off"'
       register: mitigations
       when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop']
@@ -349,10 +328,54 @@
         set -o pipefail
         dev=$(grep -E -v "zram|Filename" /proc/swaps | cut -f 1 -d " " | head -n1)
         if [ -n "$dev" ]; then
-          lvs --noheadings -o vg_name,lv_name --separator=/ "$dev" 2>/dev/null | tr -d ' ' || true
+          # /proc/swaps shows /dev/dm-N, which lvs does not accept; ask udev
+          eval "$(udevadm info -q property -n "$dev" | grep -E '^DM_(VG|LV)_NAME=')"
+          if [ -n "$DM_VG_NAME" ] && [ -n "$DM_LV_NAME" ]; then
+            echo "$DM_VG_NAME/$DM_LV_NAME"
+          fi
         fi
       register: swap_lvm_lv
       changed_when: false
+
+    # With real swap space, zswap (compressed cache in front of the swap
+    # device, writes cold pages back to disk) beats zram (cold pages stay
+    # in RAM forever, newer ones go to disk). Only on machines that have
+    # real swap, otherwise keep Fedora's default zram.
+    - name: Remove zram swap (replaced by zswap)
+      ansible.builtin.dnf:
+        name: ["zram-generator-defaults", "zram-generator"]
+        state: absent
+      register: zram_removed
+      when: swap_dev_uuid.stdout | trim != ''
+
+    # The systemd-zram-setup@ unit is gone with the package, so do it by hand.
+    - name: Stop zram swap now
+      ansible.builtin.shell: |
+        if grep -q '^/dev/zram0 ' /proc/swaps; then
+          swapoff /dev/zram0 && zramctl --reset /dev/zram0
+          echo changed
+        fi
+      register: zram_stopped
+      changed_when: "'changed' in zram_stopped.stdout"
+      when: swap_dev_uuid.stdout | trim != ''
+
+    - name: Enable zswap at boot
+      ansible.builtin.replace:
+        path: /etc/default/grub
+        regexp: '^GRUB_CMDLINE_LINUX="(?!.*\bzswap\.enabled=1\b)(.*)"$'
+        replace: 'GRUB_CMDLINE_LINUX="\1 zswap.enabled=1"'
+      register: zswap_cmdline
+      when: swap_dev_uuid.stdout | trim != ''
+
+    - name: Enable zswap now
+      ansible.builtin.shell: |
+        if [ "$(cat /sys/module/zswap/parameters/enabled)" != Y ]; then
+          echo Y > /sys/module/zswap/parameters/enabled
+          echo changed
+        fi
+      register: zswap_runtime
+      changed_when: "'changed' in zswap_runtime.stdout"
+      when: swap_dev_uuid.stdout | trim != ''
 
     - name: Enable hibernate (suspend to disk)
       ansible.builtin.replace:
@@ -390,7 +413,7 @@
     - name: Regenerate grub config after touching default/grub
       ansible.builtin.command:
         cmd: grub2-mkconfig -o /etc/grub2.cfg
-      when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop'] and ( mitigations.changed or enable_hibernate.changed or rd_lvm_lv.changed )
+      when: ansible_facts.form_factor in ['Notebook', 'Laptop', 'Desktop'] and ( mitigations.changed or enable_hibernate.changed or rd_lvm_lv.changed or zswap_cmdline.changed )
 
     - name: Framework Laptop specifics repo
       community.general.copr:
@@ -499,11 +522,20 @@
         cmd: virsh pool-autostart default
         creates: /etc/libvirt/storage/autostart/default.xml
 
+    # Not with_fileglob: lookups run as the invoking user, without become,
+    # and /etc/libvirt is only readable by root.
+    - name: Find VM definitions of the previous installation
+      ansible.builtin.find:
+        paths: "{{ old_root }}/etc/libvirt/qemu"
+        patterns: "*.xml"
+      register: old_vm_xmls
+      when: old_root is defined
+
     - name: define VMs
       ansible.builtin.command:
-        cmd: virsh define {{ item }}
-        creates: /etc/libvirt/qemu/{{ item | basename }}
-      with_fileglob: "{{ old_root }}/etc/libvirt/qemu/*.xml"
+        cmd: virsh define {{ item.path }}
+        creates: /etc/libvirt/qemu/{{ item.path | basename }}
+      loop: "{{ old_vm_xmls.files | default([]) }}"
       when: old_root is defined
 
     - name: Install flatpak
