@@ -289,6 +289,16 @@
       when: |
         gpu_type.stdout == 'Intel Corporation'
 
+    # kmod-* packages are built against the newest kernel and only pull in
+    # kernel-core/kernel-modules-core for it, leaving that kernel without
+    # kernel-modules and kernel-modules-extra (no NIC drivers). Bring the
+    # complete kernel set up to date first.
+    - name: Upgrade the complete kernel package set before installing kmods
+      ansible.builtin.dnf:
+        name: ["kernel", "kernel-core", "kernel-modules-core", "kernel-modules",
+               "kernel-modules-extra"]
+        state: latest
+
     - name: Install kmod-v4l2loopback from rpmfusion
       ansible.builtin.dnf:
         name: kmod-v4l2loopback
