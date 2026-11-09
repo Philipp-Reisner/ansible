@@ -255,11 +255,20 @@
       ansible.builtin.package_facts:
         manager: auto
 
+    # One line per display adapter, so a machine with an iGPU plus a
+    # discrete card yields several vendors. Test each vendor separately
+    # instead of comparing the whole output; a hybrid machine gets the
+    # codec drivers for every GPU it has.
     - name: Check GPU type
       ansible.builtin.shell: lshw -class display -json | jq -r '.[].vendor'
       register: gpu_type
       changed_when: false
       check_mode: false
+
+    - name: Derive which GPU vendors are present
+      ansible.builtin.set_fact:
+        has_amd_gpu: "{{ gpu_type.stdout_lines | select('match', 'Advanced Micro Devices') | list | length > 0 }}"
+        has_intel_gpu: "{{ gpu_type.stdout_lines | select('match', 'Intel Corporation') | list | length > 0 }}"
 
     # Since Fedora 45 the VA-API drivers live in mesa-dri-drivers (it
     # provides mesa-va-drivers) and Mesa dropped VDPAU, so there is
@@ -274,7 +283,7 @@
                       | selectattr('arch', 'equalto', 'i686') | list | length > 0
                    else []) }}"
         state: present
-      when: gpu_type.stdout.startswith('Advanced Micro Devices')
+      when: has_amd_gpu | bool
 
     # libva-intel-driver is i965 (up to Haswell/Gen7.5), intel-media-driver
     # is iHD (Broadwell/Gen8 and newer). libva picks the matching one for the
@@ -284,8 +293,7 @@
     - name: Switch to hardware codecs with Intel from rpmfusion
       ansible.builtin.dnf:
         name: [ "intel-media-driver", "libva-intel-driver", "libva-utils" ]
-      when: |
-        gpu_type.stdout == 'Intel Corporation'
+      when: has_intel_gpu | bool
 
     # kmod-* packages are built against the newest kernel and only pull in
     # kernel-core/kernel-modules-core for it, leaving that kernel without
