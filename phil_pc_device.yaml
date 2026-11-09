@@ -259,25 +259,22 @@
       ansible.builtin.shell: lshw -class display -json | jq -r '.[].vendor'
       register: gpu_type
       changed_when: false
+      check_mode: false
 
-    - name: Switch to hardware codecs with AMD from rpmfusion
-      ansible.builtin.command:
-        cmd: "dnf swap {{ item.pkg }}{{ suffix }} {{ item.pkg }}-freeworld{{ suffix }} --assumeyes"
-      vars:
-        suffix: "{{ '.i686' if item.arch == 'i686' else '' }}"
-      loop:
-        - { pkg: 'mesa-va-drivers',    arch: 'x86_64' }
-        - { pkg: 'mesa-vdpau-drivers', arch: 'x86_64' }
-        - { pkg: 'mesa-va-drivers',    arch: 'i686'   }
-        - { pkg: 'mesa-vdpau-drivers', arch: 'i686'   }
-      loop_control:
-        label: "{{ item.pkg }} ({{ item.arch }})"
-      when: |
-        gpu_type.stdout.startswith('Advanced Micro Devices') and
-        item.pkg in ansible_facts.packages and
-        ansible_facts.packages[item.pkg] | selectattr('arch', 'equalto', item.arch) | list | length > 0 and (
-        (item.pkg + "-freeworld") not in ansible_facts.packages or
-        ansible_facts.packages[item.pkg + "-freeworld"] | selectattr('arch', 'equalto', item.arch) | list | length == 0 )
+    # Since Fedora 45 the VA-API drivers live in mesa-dri-drivers (it
+    # provides mesa-va-drivers) and Mesa dropped VDPAU, so there is
+    # nothing to swap any more. mesa-va-drivers-freeworld installs
+    # alongside into /usr/lib64/dri-freeworld, which libva tries before
+    # /usr/lib64/dri, and adds H.264/HEVC. The i686 build is for Steam.
+    - name: Install hardware codecs with AMD from rpmfusion
+      ansible.builtin.dnf:
+        name: "{{ ['mesa-va-drivers-freeworld.x86_64'] +
+                  (['mesa-va-drivers-freeworld.i686']
+                   if ansible_facts.packages['mesa-dri-drivers'] | default([])
+                      | selectattr('arch', 'equalto', 'i686') | list | length > 0
+                   else []) }}"
+        state: present
+      when: gpu_type.stdout.startswith('Advanced Micro Devices')
 
     # libva-intel-driver is i965 (up to Haswell/Gen7.5), intel-media-driver
     # is iHD (Broadwell/Gen8 and newer). libva picks the matching one for the
