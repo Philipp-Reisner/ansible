@@ -547,6 +547,50 @@
       register: old_vm_xmls
       when: old_root is defined
 
+    - name: Find network definitions of the previous installation
+      ansible.builtin.find:
+        paths: "{{ old_root }}/etc/libvirt/qemu/networks"
+        patterns: "*.xml"
+      register: old_net_xmls
+      when: old_root is defined
+
+    - name: Find autostarted networks of the previous installation
+      ansible.builtin.find:
+        paths: "{{ old_root }}/etc/libvirt/qemu/networks/autostart"
+        patterns: "*.xml"
+        file_type: any
+      register: old_net_autostart
+      when: old_root is defined
+
+    - name: define networks
+      ansible.builtin.command:
+        cmd: virsh net-define {{ item.path }}
+        creates: /etc/libvirt/qemu/networks/{{ item.path | basename }}
+      loop: "{{ old_net_xmls.files | default([]) }}"
+      when: old_root is defined
+
+    - name: Autostart networks that were autostarted before
+      ansible.builtin.command:
+        cmd: virsh net-autostart {{ item.path | basename | splitext | first }}
+        creates: /etc/libvirt/qemu/networks/autostart/{{ item.path | basename }}
+      loop: "{{ old_net_autostart.files | default([]) }}"
+      when: old_root is defined
+
+    - name: List active networks
+      ansible.builtin.command:
+        cmd: virsh net-list --name
+      register: active_nets
+      changed_when: false
+      when: old_root is defined
+
+    - name: Start autostart networks that are not running yet
+      ansible.builtin.command:
+        cmd: virsh net-start {{ item.path | basename | splitext | first }}
+      loop: "{{ old_net_autostart.files | default([]) }}"
+      when:
+        - old_root is defined
+        - (item.path | basename | splitext | first) not in active_nets.stdout_lines
+
     - name: define VMs
       ansible.builtin.command:
         cmd: virsh define {{ item.path }}
