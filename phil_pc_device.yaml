@@ -115,7 +115,7 @@
 
     - name: Install dev tools 3
       ansible.builtin.dnf:
-        name: ["cargo", "nodejs", "npm", "difftastic"]
+        name: ["cargo", "rustfmt", "clippy", "nodejs", "npm", "difftastic"]
         update_cache: yes
         state: present
 
